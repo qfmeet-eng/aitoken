@@ -5,13 +5,29 @@ import axios from "axios";
 import { authDataContext } from "../context/authcontext";
 import { userDataContext } from "../context/userContext";
 import { Container, Row, Col, Card, Form, Button, Alert, InputGroup } from "react-bootstrap";
+import * as Yup from 'yup';
 
+//validation
+const loginSchema = Yup.object().shape({
+  email: Yup
+  .string()
+  .email("plz enter valid email")
+  .required("email is required"),
+
+  password: Yup
+  .string()
+  .min(6,'password must be at least 6 character')
+  .required("password is required")
+})
+
+
+//login
 function Login() {
   const [show, setShow] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-
+  const [filedError,setFiledError] = useState({})
   const { serverUrl } = useContext(authDataContext);
   const { getCurrentUserData } = useContext(userDataContext);
   const navigate = useNavigate();
@@ -19,14 +35,28 @@ function Login() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
+    setFiledError({})
+
     try {
+      await loginSchema.validate({email, password},{abortEarly:false})
       const result = await axios.post(`${serverUrl}/user/login`, { email, password });
       localStorage.setItem("token", result.data.data.token);
       localStorage.setItem("userData", JSON.stringify(result.data.data));
       getCurrentUserData();
       navigate("/");    
     } catch (err) {
-      setError(err.response?.data?.message || err.message);
+      //yup validation err
+   if (err.name === "ValidationError") {
+  const errors = {};
+  err.inner.forEach((e) => {
+    errors[e.path] = e.message;
+  });
+  setFiledError(errors);
+  return;
+}
+
+      //backend err
+      setError(err.response?.data?.message || "login failed");
     }
   };
 
@@ -44,19 +74,21 @@ function Login() {
               {error && <Alert variant="danger">{error}</Alert>}
 
               <Form onSubmit={handleLogin}>
-                <Form.Group className="mb-3" controlId="formEmail">
+                <Form.Group className="mb-2" controlId="formEmail">
                   <Form.Label>Email</Form.Label>
                   <Form.Control
                     type="email"
                     placeholder="Enter your email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    required
                     style={{ borderRadius: "0.5rem" }}
                   />
                 </Form.Group>
+            
+            {filedError.email && 
+            <div className="text-danger mb-1">{filedError.email}</div> }
 
-                <Form.Group className="mb-4" controlId="formPassword">
+                <Form.Group className="mb-2" controlId="formPassword">
                   <Form.Label>Password</Form.Label>
                   <InputGroup>
                     <Form.Control
@@ -64,8 +96,7 @@ function Login() {
                       placeholder="Enter your password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      required
-                      style={{ borderRadius: "0.5rem" }}
+                        style={{ borderRadius: "0.5rem" }}
                     />
                     <Button
                       variant="outline-secondary"
@@ -76,6 +107,8 @@ function Login() {
                     </Button>
                   </InputGroup>
                 </Form.Group>
+
+              {filedError.password && <div className="text-danger mt-0 mb-2">{filedError.password}</div>}
 
                 <Button
                   type="submit"
